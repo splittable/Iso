@@ -1,0 +1,580 @@
+getgenv().iso = {
+    Aimbot = {
+		Settings = {
+			Enabled = true,
+			Targetting = {
+				Target = "Q",
+				Point = "Head"
+			},
+			CurvePatterns = {
+				Pullback =  0.12,
+				Pattern = "Adaptive",
+				Configuration = { 
+					Caclulation = 0.005, 
+					Delta = 0.01, 
+					Rapid = 0.8, 
+					Offset = 100, 
+					Controllage = 0.01
+			    },
+				Displacement = { 
+					Enabled = true, 
+					DisplacementX = 0.9, 
+					DisplacementY = 0.3
+				}
+			},
+			Delta = {  -- prediction
+				Vertical = 0.01, 
+				Horizontal = 0.001,
+				Steepness = 0.001
+			},
+            Shake = { 
+				Enabled = true, 
+				Factor = 0.33, 
+				X = 7, 
+				Y = 6, 
+				Z = 5
+			}
+	 	}
+    },
+    Curve = {
+		Enabled = false,
+		Type = "Target", -- Target, FOV
+		Part = "HumanoidRootPart",
+		Amount = 0.1198
+    },
+	Resolving = {
+        Enabled = false, -- keep on false its auto
+		PositionMethods = true,
+		PositionMethod = "Position", -- Direction, Position
+		Delta = 70,
+		Acceleration = 18.2,
+		ThresholdVelocity = 0.192, -- prediction to use while anti is being used KEEP THIS
+		RevertValue = 0.12 -- prediction to revert to when anti isnt being used
+    },
+	Checks = {
+        Death = true,
+        Visible = true,
+        Picked = true
+    },
+	Renders = {
+		Visible = false,
+		Transparency = 0.3,
+		Filled = true,
+		Outline = true,
+		Color = Color3.new(1, 1, 1),
+		Radius = 40
+	}
+}
+
+
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+
+
+-- // Splitta & Hook
+-- // Splitta & Hook
+
+
+-- // Splitta & Hook
+
+
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+
+
+
+-- // Splitta & Hook
+
+
+
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+
+
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+local Players = game:GetService("Players")
+local Self = game:GetService("Players").LocalPlayer
+local Mouse = game:GetService("Players").LocalPlayer:GetMouse()
+local UserInputService = game:GetService("UserInputService")
+local RS = game:GetService("RunService")
+local Camera = game.Workspace.CurrentCamera
+local CurveTarget, AimbotTarget, Velocity, SVelocity
+local Point
+local Script = { Functions = {} , Renders = {} , CachedPlayers = nil } -- // Splitta & Hook
+
+
+
+
+local Find = string.find -- // Splitta & Hook
+
+
+
+local GBGBAYS = getgenv().iso -- // Splitta & Hook
+local Aimbot = iso.Aimbot -- // Splitta & Hook
+local Curve = iso.Curve
+
+
+local AimbotFOV = Drawing.new("Circle")
+
+AimbotFOV.Color = Color3.new(0, 0, 0)
+AimbotFOV.Thickness = 1
+AimbotFOV.Filled = false
+AimbotFOV.Transparency = 0.7
+
+
+
+local createCircle = function()
+	if (not AimbotFOV) then
+		return AimbotFOV
+	end
+	AimbotFOV.Visible = getgenv().iso.Renders.Visible
+	AimbotFOV.Color = getgenv().iso.Renders.Color
+	AimbotFOV.Transparency = getgenv().iso.Renders.Transparency
+	AimbotFOV.Filled = getgenv().iso.Renders.Filled
+	AimbotFOV.Radius = getgenv().iso.Renders.Radius * 3
+	AimbotFOV.Position = Vector2.new(Mouse.X, Mouse.Y + (game:GetService("GuiService"):GetGuiInset().Y))
+	return AimbotFOV
+end
+
+
+
+
+-- indexing checks first so nothing bugs out
+
+local RayViewPort = function(destination, ignore)
+	if getgenv().iso.Checks.RayViewPort then
+		local Origin = Camera.CFrame.p
+		local CheckRay = Ray.new(Origin, destination - Origin)
+		local Hit = game.workspace:FindPartOnRayWithIgnoreList(CheckRay, ignore)
+		return Hit == nil
+	else
+		return true
+	end
+end
+
+
+local function Picked(v)
+	if getgenv().iso.Checks.Picked then
+		if v:FindFirstChild("GRABBING_CONSTRAINT") ~= nil then
+			return false
+		else
+			return true
+		end
+	else
+		return true
+	end
+end
+
+
+
+local function CastVisible(Object)
+	if getgenv().iso.Checks.Visible then
+		local Casted = Ray.new(game.Players.LocalPlayer.Character.HumanoidRootPart.Position, Object.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position)
+		local NonObjects = {
+			game.Players.LocalPlayer.Character,
+			Object.Parent
+		}
+		local FalseValue, i, d, k = game.Workspace:FindPartOnRayWithIgnoreList(Casted, NonObjects)
+		local _, v = Workspace.CurrentCamera:WorldToScreenPoint(Object.Position)
+		if v and not FalseValue then
+			return true
+		else
+			return false
+		end
+	else
+		return true
+	end
+end
+
+
+
+
+local function Dead(v)
+	if getgenv().iso.Checks.Death then
+		if v:FindFirstChild("BodyEffects")["K.O"].Value == false then
+			return true
+		else
+			return false
+		end
+	else
+		return true
+	end
+end
+
+
+
+
+local WorldToScreenObject = function(Object)
+	local ObjectVector = Camera:WorldToScreenPoint(Object.Position)
+	return Vector2.new(ObjectVector.X, ObjectVector.Y)
+end -- indexing this now so redirect doesnt mess with aimbot
+
+local function ClosestAimbot()
+	local VectorPoint
+	local shortestDistance = math.huge
+	local localPlayer = game.Players.LocalPlayer
+	local camera = workspace.CurrentCamera
+	local mousePosition = Vector2.new(Mouse.X, Mouse.Y)
+	
+	for _, player in ipairs(game.Players:GetPlayers()) do
+		if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
+			local character = player.Character
+			local humanoidRootPart = character.PrimaryPart
+			if humanoidRootPart then
+				local worldPosition = humanoidRootPart.Position
+				local screenPosition = camera:WorldToViewportPoint(worldPosition)
+				local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - mousePosition).magnitude
+				
+				if distance < shortestDistance then
+					VectorPoint = player
+					shortestDistance = distance
+				end
+			end
+		end
+	end
+	
+	return VectorPoint
+end
+-- // Splitta & Hook
+
+-- // Splitta & Hook
+local function Filter(Object)
+	if Find(Object.Name, "Gun") then
+		return -- // Splitta & Hook
+	end
+	if Object:IsA("Part") or Object:IsA("MeshPart") then
+		return true
+	end
+end -- // Splitta & Hook
+
+
+
+local function DeltaEasing(alpha)
+        local p = 1.70158 
+
+        if alpha < 0.5 then
+            alpha = alpha * 2
+            return 0.5 * alpha * alpha * ((p + 1) * alpha - p)
+        else
+            alpha = (alpha - 0.5) * 2
+            return 0.5 * alpha * alpha * ((p + 1) * alpha + p) + 0.5
+        end
+    end
+
+
+local function isoEasing(alpha, duration) -- // Splitta & Hook
+   
+        local t = alpha / duration
+        local easedAlpha = (1 - math.exp(-5 * t)) / (1 - math.exp(-5))
+
+        local customEasedAlpha = easedAlpha * (2 - easedAlpha)
+
+        local amplitude = getgenv().iso.Aimbot.Settings.CurvePatterns.Configuration.Caclulation
+        local frequency = getgenv().iso.Aimbot.Settings.CurvePatterns.Configuration.Rapid
+        local offset = getgenv().iso.Aimbot.Settings.CurvePatterns.Configuration.Offset
+
+        local customEffect = amplitude * math.sin(frequency * t + offset)
+        customEasedAlpha = customEasedAlpha + customEffect
+
+        local smoothingFactor = getgenv().iso.Aimbot.Settings.CurvePatterns.Configuration.Delta
+        customEasedAlpha = alpha * smoothingFactor + customEasedAlpha * (1 - smoothingFactor)
+
+        local jitterAmount = getgenv().iso.Aimbot.Settings.CurvePatterns.Configuration.Controllage
+        local randomControllage = (math.random() * 2 - 1) * jitterAmount
+        customEasedAlpha = customEasedAlpha + randomControllage
+
+        customEasedAlpha = math.max(0, math.min(1, customEasedAlpha))
+
+        return customEasedAlpha
+    end
+
+
+
+	local function DynamicTargetDelta(target, part)
+		local DeltaFactors = getgenv().iso.Aimbot.Settings.Delta
+		local Velocity = target.Character[part].Velocity
+		local PredictedPosition = target.Character[part].Position + Vector3.new(
+			Velocity.X * DeltaFactors.Vertical,
+			Velocity.Y * DeltaFactors.Horizontal,
+			Velocity.Z * DeltaFactors.Steepness
+		)
+	
+		return PredictedPosition
+	end -- // Splitta & Hook
+
+	local function DeltaFormula(target, part)
+		local DeltaFactor = getgenv().iso.Aimbot.Settings.Delta.Vertical
+	
+		local Velocity = target.Character[part].Velocity
+		local Gravity = workspace.Gravity
+		local TimeOfFlight = 2 * Velocity.Y / Gravity
+		local DisplacementYDistance = Velocity.X * TimeOfFlight
+		local DisplacementXDistance = (Velocity.Y * TimeOfFlight) - (0.5 * Gravity * TimeOfFlight^2)
+		local PredictedPosition = target.Character[part].Position + Vector3.new(DisplacementYDistance, DisplacementXDistance, Velocity.Z) * DeltaFactor
+	
+		return PredictedPosition
+	end
+
+	local function TargetDelta(target, part)
+		local DeltaFactor = getgenv().iso.Aimbot.Settings.Delta.Vertical
+		local Position = target.Character[part].Position
+		local Velocity = target.Character[part].Velocity
+		local Acceleration = target.Character[part].AssemblyLinearVelocity
+		local DeltaTime = game:GetService("RunService").Heartbeat:Wait()
+		local PredictedPosition = Position + Velocity * DeltaTime + 0.5 * Acceleration * DeltaTime^2 * DeltaFactor
+	
+		return PredictedPosition
+	end
+	-- // Splitta & Hook
+
+	local function IsAimbotEnabled()
+		return iso.Aimbot.Settings.Enabled
+	end
+	
+	local function IsValidAimbotTarget(AimbotTarget)
+		return AimbotTarget and AimbotTarget.Character ~= nil and CastVisible(AimbotTarget.Character[getgenv().iso.Aimbot.Settings.Targetting.Point]) and Dead(AimbotTarget.Character) and Picked(AimbotTarget.Character)
+	end
+	
+	local function GetDisplacement()
+		if getgenv().iso.Aimbot.Settings.CurvePatterns.Displacement.Enabled then
+			return getgenv().iso.Aimbot.Settings.CurvePatterns.Displacement.DisplacementX, getgenv().iso.Aimbot.Settings.CurvePatterns.Displacement.DisplacementY
+		else
+			return 0, 0
+		end
+	end
+	-- // Splitta & Hook
+	local function GetAdjustedPosition(TargetPosition, OffsetX, OffsetY)
+		return TargetPosition + Vector3.new(OffsetX, OffsetY, 0)
+	end
+	
+	local function GetAdjustedDelta(TargetPosition, OffsetX, OffsetY, Jittering)
+		if getgenv().iso.Aimbot.Settings.Shake.Enabled then
+			return CFrame.new(
+				Camera.CFrame.p,
+				TargetPosition + Vector3.new(
+					math.random(-Jittering.X, Jittering.X),
+					math.random(-Jittering.Y, Jittering.Y),
+					math.random(-Jittering.Z, Jittering.Z)
+				) * Jittering.Factor
+			)
+		else
+			return CFrame.new(Camera.CFrame.p, TargetPosition + Vector3.new(OffsetX, OffsetY, 0))
+		end
+	end
+-- // Splitta & Hook
+	-- // Splitta & Hook
+	local function UpdateCameraCFrame(AimbotTarget)
+		if not IsAimbotEnabled() or not IsValidAimbotTarget(AimbotTarget) then
+			return
+		end
+	
+		local OffsetX, OffsetY = GetDisplacement()
+		local Velocity = AimbotTarget.Character[getgenv().iso.Aimbot.Settings.Targetting.Point].Velocity
+		local Jittering = getgenv().iso.Aimbot.Settings.Shake
+		local TargetPosition = DynamicTargetDelta(AimbotTarget, getgenv().iso.Aimbot.Settings.Targetting.Point)
+		local AdjustedPosition = GetAdjustedPosition(TargetPosition, OffsetX, OffsetY)
+		local AdjustedDelta = GetAdjustedDelta(AdjustedPosition, OffsetX, OffsetY, Jittering)
+		local CurvePatternsAmount = getgenv().iso.Aimbot.Settings.CurvePatterns.Pullback
+		local CurvePatternsAlpha = getgenv().iso.Aimbot.Settings.CurvePatterns.Pattern
+		if CurvePatternsAlpha == "Adaptive" then
+			Camera.CFrame = Camera.CFrame:Lerp(AdjustedDelta, CurvePatternsAmount, isoEasing)
+		elseif CurvePatternsAlpha == "Math" then
+			Camera.CFrame = Camera.CFrame:Lerp(AdjustedDelta, CurvePatternsAmount, DeltaEasing)
+		end
+	end
+	-- // Splitta & Hook
+	RS.Heartbeat:Connect(function()
+		UpdateCameraCFrame(AimbotTarget)
+	end)
+	-- // Splitta & Hook
+	Mouse.KeyDown:Connect(function(Key)
+		local Toggle = iso.Aimbot.Settings.Targetting.Target:lower()
+		if Key == Toggle then
+			if iso.Aimbot.Settings.Enabled then
+				FoundTarget = not FoundTarget
+				if FoundTarget then
+					AimbotTarget = ClosestAimbot()
+				else
+					AimbotTarget = nil
+				end
+			end
+		end
+	end)
+
+	
+	
+-- // Splitta & Hook
+
+
+local function ClosestRedirect()
+	local Target, Closest = nil, 1 / 0
+	for _, v in pairs(Players:GetPlayers()) do
+		if (v.Character and v ~= Self and v.Character:FindFirstChild("HumanoidRootPart")) then
+			local Position, OnScreen = Camera:WorldToScreenPoint(v.Character.HumanoidRootPart.Position)
+			local Distance = (Vector2.new(Position.X, Position.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+			if (AimbotFOV.Radius > Distance and Distance < Closest and OnScreen) then
+				Closest = Distance
+				Target = v
+			end
+		end -- // Splitta & Hook
+	end
+	return Target
+end
+
+local function Calculation()
+	if getgenv().iso.Curve.Enabled then
+		local partName = getgenv().iso.Curve.Part
+		local target = nil
+		CurveTarget = ClosestRedirect()
+
+		if getgenv().iso.Curve.Type == "Target" then
+			target = AimbotTarget 
+		else
+			target = CurveTarget
+		end
+
+		if target then
+			if CastVisible(target.Character[partName]) and Dead(target.Character) and Picked(target.Character) then
+				SVelocity = target.Character[partName].Velocity
+			end
+
+			local vel
+			if getgenv().iso.Resolving.Enabled then
+				vel = shared.velocity
+			else
+				vel = SVelocity	
+			end
+
+			local endpoint = target.Character[partName].Position + (vel * getgenv().iso.Curve.Amount)
+
+			game.ReplicatedStorage.MainEvent:FireServer("UpdateMousePos", endpoint)
+		end
+	end
+end
+
+local lp = game.Players.LocalPlayer
+
+local cons = {}
+for i, v in pairs(lp.Backpack:GetChildren()) do
+    if v:IsA("Tool") and not cons[v] then
+        cons[v] = v.Activated:Connect(Calculation)
+    end
+end
+for i, v in pairs(lp.Character:GetChildren()) do
+    if v:IsA("Tool") and not cons[v] then
+        cons[v] = v.Activated:Connect(Calculation)
+    end
+end
+lp.Character.ChildAdded:connect(function(v)
+    if v:IsA("Tool") and not cons[v] then
+        cons[v] = v.Activated:Connect(Calculation)
+    end
+end)
+lp.CharacterAdded:connect(function(v)
+    for i = 1, # cons, 1 do
+        cons[i]:Disconnect()
+        cons[i] = nil
+    end
+v.ChildAdded:connect(function(v)
+    if v:IsA("Tool") and not cons[v] then
+        cons[v] = v.Activated:Connect(Calculation)
+end
+end)
+end)
+
+			
+
+shared.lastPos = nil
+shared.velocity = nil
+shared.lastTime = nil
+
+local function RecalculateVelocity(target)
+	local lastPos = shared.lastPos
+	local lastTime = shared.lastTime
+		if not lastPos then
+			shared.lastPos = target.Character:GetPivot().p
+			shared.lastTime = tick()
+					return
+				end
+				
+	local currentPos = target.Character:GetPivot().p
+	local currentTime = tick()
+	local deltaTime = currentTime - lastTime
+	local velocity = (currentPos - lastPos) / deltaTime
+			shared.velocity = velocity
+			shared.lastPos = currentPos
+			shared.lastTime = currentTime
+		end
+
+local function UpdateVelocity()
+	if getgenv().iso.Resolving.Enabled and getgenv().iso.Resolving.Type == "Position" and CurveTarget then
+		RecalculateVelocity(CurveTarget)
+		end
+	end
+
+RS.Heartbeat:Connect(UpdateVelocity)
+				
+local previousPosition = nil
+local previousTime = nil
+
+local function NewVelocity(object)
+    local currentPosition = object.Position
+    local currentTime = tick()
+
+    if previousPosition and previousTime then
+        local deltaTime = currentTime - previousTime
+        local velocity = (currentPosition - previousPosition) / deltaTime
+
+        object.Velocity = velocity
+    end
+
+    previousPosition = currentPosition
+    previousTime = currentTime
+end
+
+RS.Heartbeat:Connect(function()
+    local object = AimbotTarget.Character and AimbotTarget.Character:FindFirstChild("HumanoidRootPart")
+    if object and object.Velocity.magnitude > getgenv().iso.Resolving.Delta then
+        NewVelocity(object)
+    end
+end)
+
+
+
+
+RS.Heartbeat:Connect(function()
+	if getgenv().iso.Curve.Enabled then
+		if CurveTarget and CurveTarget.Character and CurveTarget.Character:FindFirstChild("HumanoidRootPart") then
+			local Position = CurveTarget.Character:WaitForChild("HumanoidRootPart").Velocity.magnitude
+			if Position > getgenv().iso.Resolving.Delta then
+				getgenv().iso.Resolving.Enabled = true
+				getgenv().iso.Curve.Amount = getgenv().iso.Resolving.ThresholdVelocity
+			else
+				getgenv().iso.Resolving.Enabled = false
+				getgenv().iso.Curve.Amount = getgenv().iso.Resolving.RevertValue
+			end
+		end
+	end
+end)
+
+
+
+
+
+
+RS.Heartbeat:Connect(createCircle)
